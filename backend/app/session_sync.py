@@ -9,10 +9,13 @@ This module enables:
 """
 
 from typing import Optional, Dict, Any, List
+import logging
 from pydantic import BaseModel
 from datetime import datetime
 import uuid
 import json
+
+logger = logging.getLogger(__name__)
 
 class SessionState(BaseModel):
     session_id: str
@@ -39,15 +42,25 @@ class SessionSyncService:
         """Save session state and return session ID."""
         session.updated_at = datetime.utcnow()
         self._sessions[session.session_id] = session
+        logger.info(
+            "Session saved",
+            extra={"session_id": session.session_id, "project": session.project_name},
+        )
         return session.session_id
 
     async def load_session(self, session_id: str) -> Optional[SessionState]:
         """Load session state by ID."""
-        return self._sessions.get(session_id)
+        session = self._sessions.get(session_id)
+        if session:
+            logger.info("Session loaded", extra={"session_id": session_id})
+        else:
+            logger.warning("Session not found", extra={"session_id": session_id})
+        return session
 
     async def create_share_link(self, session_id: str) -> str:
         """Generate a shareable link for a session."""
         if session_id not in self._sessions:
+            logger.warning("Session not found for share", extra={"session_id": session_id})
             raise ValueError(f"Session {session_id} not found")
         
         link_id = uuid.uuid4().hex[:12]
@@ -76,9 +89,9 @@ async def save_current_session(
     session_id: str,
     user_id: str,
     project_name: str,
-    messages: List[Dict],
-    spec: Optional[Dict] = None,
-    file_changes: List[str] = None,
+    messages: List[Dict[str, Any]],
+    spec: Optional[Dict[str, Any]] = None,
+    file_changes: List[str] | None = None,
 ) -> str:
     """Helper to save a session."""
     now = datetime.utcnow()

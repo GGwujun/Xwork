@@ -9,10 +9,13 @@ This module provides standard MCP tools for interacting with TFS/Azure DevOps:
 """
 
 from typing import List, Optional, Dict, Any
+import logging
 from pydantic import BaseModel
 import os
 
 # --- Types ---
+
+logger = logging.getLogger(__name__)
 
 class WorkItem(BaseModel):
     id: int
@@ -56,13 +59,19 @@ class TfsClient:
         items = self._mock_items
         if item_type:
             items = [i for i in items if i.type.lower() == item_type.lower()]
+        logger.info(
+            "TFS work items listed",
+            extra={"project": project, "item_type": item_type, "count": len(items)},
+        )
         return items
 
     async def get_work_item(self, item_id: int) -> Optional[WorkItem]:
         """Get a specific work item by ID."""
         for item in self._mock_items:
             if item.id == item_id:
+                logger.info("TFS work item fetched", extra={"item_id": item_id})
                 return item
+        logger.warning("TFS work item not found", extra={"item_id": item_id})
         return None
 
     async def create_work_item(self, request: CreateWorkItemRequest) -> WorkItem:
@@ -77,33 +86,48 @@ class TfsClient:
             description=request.description,
         )
         self._mock_items.append(new_item)
+        logger.info(
+            "TFS work item created",
+            extra={"item_id": new_id, "item_type": request.type, "project": request.project},
+        )
         return new_item
 
-    async def trigger_build(self, project: str, pipeline_id: int) -> Dict[str, Any]:
+    async def trigger_build(self, project: str, pipeline_id: int) -> dict[str, Any]:
         """Trigger a build pipeline."""
         # In production: POST to /_apis/build/builds
-        return {
+        payload = {
             "build_id": 12345,
             "status": "queued",
             "pipeline_id": pipeline_id,
             "project": project,
         }
+        logger.info(
+            "TFS build triggered",
+            extra={"project": project, "pipeline_id": pipeline_id, "status": payload["status"]},
+        )
+        return payload
 
 # --- MCP Tool Definitions ---
 
 tfs_client = TfsClient()
 
-async def mcp_list_work_items(project: str, item_type: Optional[str] = None) -> List[Dict]:
+async def mcp_list_work_items(project: str, item_type: Optional[str] = None) -> list[dict[str, Any]]:
     """MCP Tool: List work items from TFS."""
     items = await tfs_client.list_work_items(project, item_type)
     return [item.model_dump() for item in items]
 
-async def mcp_get_work_item(item_id: int) -> Optional[Dict]:
+async def mcp_get_work_item(item_id: int) -> Optional[dict[str, Any]]:
     """MCP Tool: Get a work item by ID."""
     item = await tfs_client.get_work_item(item_id)
     return item.model_dump() if item else None
 
-async def mcp_create_work_item(project: str, item_type: str, title: str, description: str = "", assigned_to: str = "") -> Dict:
+async def mcp_create_work_item(
+    project: str,
+    item_type: str,
+    title: str,
+    description: str = "",
+    assigned_to: str = "",
+) -> dict[str, Any]:
     """MCP Tool: Create a new work item."""
     request = CreateWorkItemRequest(
         project=project,
@@ -115,6 +139,6 @@ async def mcp_create_work_item(project: str, item_type: str, title: str, descrip
     item = await tfs_client.create_work_item(request)
     return item.model_dump()
 
-async def mcp_trigger_build(project: str, pipeline_id: int) -> Dict:
+async def mcp_trigger_build(project: str, pipeline_id: int) -> dict[str, Any]:
     """MCP Tool: Trigger a CI/CD pipeline."""
     return await tfs_client.trigger_build(project, pipeline_id)

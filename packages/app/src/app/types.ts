@@ -4,6 +4,13 @@ import type { OpencodeConfigFile, WorkspaceInfo } from "./lib/tauri";
 
 export type Client = ReturnType<typeof createClient>;
 
+export type SkillCard = {
+  name: string;
+  description?: string;
+  path: string;
+  tags?: string[];
+};
+
 export type PlaceholderAssistantMessage = {
   id: string;
   sessionID: string;

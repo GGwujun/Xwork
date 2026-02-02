@@ -18,6 +18,7 @@
     "test:permissions": "node scripts/permissions.mjs",
     "test:session-switch": "node scripts/session-switch.mjs",
     "test:fs-engine": "node scripts/fs-engine.mjs",
+    "test:unit": "vitest run",
     "test:e2e": "node scripts/e2e.mjs && node scripts/session-switch.mjs && node scripts/fs-engine.mjs",
     "bump:patch": "node scripts/bump-version.mjs patch",
     "bump:minor": "node scripts/bump-version.mjs minor",
@@ -34,17 +35,27 @@
     "@tauri-apps/plugin-opener": "^2.5.3",
     "@tauri-apps/plugin-process": "~2.3.1",
     "@tauri-apps/plugin-updater": "~2.9.0",
+    "@codemirror/basic-setup": "^0.20.0",
+    "@codemirror/commands": "^6.6.0",
+    "@codemirror/lang-json": "^6.0.1",
+    "@codemirror/language": "^6.10.2",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.26.3",
     "jsonc-parser": "^3.2.1",
     "lucide-solid": "^0.562.0",
     "marked": "^17.0.1",
-    "solid-js": "^1.9.0"
+    "solid-js": "^1.9.0",
+    "@solidjs/router":"^0.15.4"
   },
   "devDependencies": {
+    "@solidjs/testing-library": "^0.8.0",
     "@tailwindcss/vite": "^4.1.18",
+    "jsdom": "^26.0.0",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.6.3",
     "vite": "^6.0.1",
-    "vite-plugin-solid": "^2.11.0"
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^2.1.4"
   },
   "packageManager": "pnpm@10.27.0"
 }

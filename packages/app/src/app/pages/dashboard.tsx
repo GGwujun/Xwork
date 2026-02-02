@@ -466,7 +466,7 @@ export default function DashboardView(props: DashboardViewProps) {
           </div>
         </header>
 
-        <div class="p-6 md:p-10 max-w-5xl mx-auto space-y-10">
+        <div class="p-6 md:p-10  mx-auto space-y-10">
           <Switch>
             <Match when={props.tab === "home"}>
               <section>

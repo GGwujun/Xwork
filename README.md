@@ -175,3 +175,4 @@ WEBKIT_DISABLE_COMPOSITING_MODE=1 openwork
 ## License
 
 MIT — see `LICENSE`.
+帮我生成一个记事本的开发计划

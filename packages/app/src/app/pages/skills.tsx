@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal, createEffect } from "solid-js";
 
 import type { SkillCard } from "../types";
 
@@ -28,6 +28,75 @@ export default function SkillsView(props: SkillsViewProps) {
 
   const [uninstallTarget, setUninstallTarget] = createSignal<SkillCard | null>(null);
   const uninstallOpen = createMemo(() => uninstallTarget() != null);
+
+  const [searchQuery, setSearchQuery] = createSignal("");
+  const [searchTags, setSearchTags] = createSignal("");
+  const [searchResults, setSearchResults] = createSignal<
+    { skill: SkillCard; score: number }[]
+  >([]);
+  const [searching, setSearching] = createSignal(false);
+  const [selectedSkill, setSelectedSkill] = createSignal<SkillCard | null>(null);
+  const [stats, setStats] = createSignal({
+    total: 0,
+    lastRefresh: "",
+    lastQuery: "",
+  });
+
+  createEffect(() => {
+    setStats((current) => ({
+      ...current,
+      total: props.skills.length,
+    }));
+  });
+
+  const mapSkillCard = (input: any): SkillCard => ({
+    name: input?.name ?? "",
+    description: input?.description ?? "",
+    path: input?.file_path ?? input?.path ?? "",
+    tags: Array.isArray(input?.tags) ? input.tags : [],
+  });
+
+  const fetchSearchResults = async () => {
+    if (!searchQuery().trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const response = await fetch("http://127.0.0.1:8000/skills/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: searchQuery().trim(),
+          tags: searchTags()
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+          top_k: 5,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to search skills");
+      }
+      const data = await response.json();
+      const results = Array.isArray(data)
+        ? data.map((item) => ({
+            skill: mapSkillCard(item.skill ?? item),
+            score: typeof item.score === "number" ? item.score : 0,
+          }))
+        : [];
+      setSearchResults(results);
+      setStats((current) => ({
+        ...current,
+        lastQuery: searchQuery().trim(),
+        lastRefresh: new Date().toLocaleTimeString(),
+      }));
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   return (
     <section class="space-y-8">
@@ -101,53 +170,145 @@ export default function SkillsView(props: SkillsViewProps) {
         </Show>
       </div>
 
-      <div>
-        <div class="flex items-center justify-between mb-3">
-          <div>
-            <div class="text-sm font-semibold text-gray-12">{translate("skills.installed")}</div>
-            <div class="text-xs text-gray-10 mt-1">{translate("skills.installed_description")}</div>
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <div class="text-sm font-semibold text-gray-12">{translate("skills.installed")}</div>
+              <div class="text-xs text-gray-10 mt-1">{translate("skills.installed_description")}</div>
+            </div>
+            <div class="text-xs text-gray-10">{stats().total}</div>
           </div>
-          <div class="text-xs text-gray-10">{props.skills.length}</div>
+
+          <div class="rounded-2xl border border-gray-6/60 bg-gray-1/40 p-4 mb-4 space-y-3">
+            <div class="text-xs uppercase tracking-wider text-gray-11 font-semibold">
+              {translate("skills.search_title")}
+            </div>
+            <div class="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto]">
+              <input
+                value={searchQuery()}
+                onInput={(event) => setSearchQuery(event.currentTarget.value)}
+                placeholder={translate("skills.search_skills_placeholder")}
+                class="h-10 rounded-xl bg-gray-1/40 border border-gray-6/60 px-3 text-sm text-gray-12"
+              />
+              <input
+                value={searchTags()}
+                onInput={(event) => setSearchTags(event.currentTarget.value)}
+                placeholder={translate("skills.search_tags_placeholder")}
+                class="h-10 rounded-xl bg-gray-1/40 border border-gray-6/60 px-3 text-sm text-gray-12"
+              />
+              <Button
+                variant="secondary"
+                onClick={fetchSearchResults}
+                disabled={searching()}
+              >
+                {searching()
+                  ? translate("skills.searching")
+                  : translate("skills.search_button")}
+              </Button>
+            </div>
+            <div class="grid gap-2 text-xs text-gray-10 md:grid-cols-3">
+              <div>
+                {translate("skills.stats_last_query")}: {stats().lastQuery || "-"}
+              </div>
+              <div>
+                {translate("skills.stats_last_refresh")}: {stats().lastRefresh || "-"}
+              </div>
+              <div>
+                {translate("skills.stats_total")}: {stats().total}
+              </div>
+            </div>
+          </div>
+
+          <Show
+            when={props.skills.length}
+            fallback={
+              <div class="rounded-2xl border border-gray-6/60 bg-gray-1/40 px-5 py-6 text-sm text-zinc-500">
+                {translate("skills.no_skills")}
+              </div>
+            }
+          >
+            <div class="rounded-2xl border border-gray-6/60 bg-gray-1/40 divide-y divide-gray-6/60">
+              <For each={props.skills}>
+                {(s) => (
+                  <div class="px-5 py-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                      <div class="space-y-2">
+                        <button
+                          type="button"
+                          class="flex items-center gap-2"
+                          onClick={() => setSelectedSkill(s)}
+                        >
+                          <Package size={16} class="text-gray-11" />
+                          <div class="font-medium text-gray-12">{s.name}</div>
+                        </button>
+                        <Show when={s.description}>
+                          <div class="text-sm text-gray-10">{s.description}</div>
+                        </Show>
+                        <div class="text-xs text-gray-7 font-mono">{s.path}</div>
+                      </div>
+                      <Button
+                        variant="danger"
+                        class="!px-3 !py-2 text-xs"
+                        onClick={() => setUninstallTarget(s)}
+                        disabled={props.busy}
+                        title={translate("skills.uninstall")}
+                      >
+                        {translate("skills.uninstall")}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
         </div>
 
-        <Show
-          when={props.skills.length}
-          fallback={
-            <div class="rounded-2xl border border-gray-6/60 bg-gray-1/40 px-5 py-6 text-sm text-zinc-500">
-              {translate("skills.no_skills")}
+        <div class="space-y-4">
+          <div class="rounded-2xl border border-gray-6/60 bg-gray-1/40 p-4">
+            <div class="text-xs uppercase tracking-wider text-gray-11 font-semibold">
+              {translate("skills.search_results_title")}
             </div>
-          }
-        >
-          <div class="rounded-2xl border border-gray-6/60 bg-gray-1/40 divide-y divide-gray-6/60">
-            <For each={props.skills}>
-              {(s) => (
-                <div class="px-5 py-4">
-                  <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div class="space-y-2">
-                      <div class="flex items-center gap-2">
-                        <Package size={16} class="text-gray-11" />
-                        <div class="font-medium text-gray-12">{s.name}</div>
-                      </div>
-                      <Show when={s.description}>
-                        <div class="text-sm text-gray-10">{s.description}</div>
-                      </Show>
-                      <div class="text-xs text-gray-7 font-mono">{s.path}</div>
-                    </div>
-                    <Button
-                      variant="danger"
-                      class="!px-3 !py-2 text-xs"
-                      onClick={() => setUninstallTarget(s)}
-                      disabled={props.busy}
-                      title={translate("skills.uninstall")}
+            <Show
+              when={searchResults().length}
+              fallback={<div class="text-sm text-gray-10 mt-3">{translate("skills.search_empty")}</div>}
+            >
+              <div class="mt-3 space-y-3">
+                <For each={searchResults()}>
+                  {(result) => (
+                    <button
+                      type="button"
+                      class="w-full text-left rounded-xl border border-gray-6/60 bg-gray-2/30 px-3 py-2"
+                      onClick={() => setSelectedSkill(result.skill)}
                     >
-                      {translate("skills.uninstall")}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </For>
+                      <div class="flex items-center justify-between">
+                        <div class="text-sm font-medium text-gray-12">{result.skill.name}</div>
+                        <div class="text-xs text-gray-9">Score {result.score.toFixed(2)}</div>
+                      </div>
+                      <div class="text-xs text-gray-10 mt-1">{result.skill.description}</div>
+                    </button>
+                  )}
+                </For>
+              </div>
+            </Show>
           </div>
-        </Show>
+
+          <div class="rounded-2xl border border-gray-6/60 bg-gray-1/40 p-4">
+            <div class="text-xs uppercase tracking-wider text-gray-11 font-semibold">
+              {translate("skills.preview_title")}
+            </div>
+            <Show
+              when={selectedSkill()}
+              fallback={<div class="text-sm text-gray-10 mt-3">{translate("skills.preview_empty")}</div>}
+            >
+              <div class="mt-3 space-y-2">
+                <div class="text-sm font-semibold text-gray-12">{selectedSkill()?.name}</div>
+                <div class="text-xs text-gray-10">{selectedSkill()?.description}</div>
+                <div class="text-xs text-gray-7 font-mono break-all">{selectedSkill()?.path}</div>
+              </div>
+            </Show>
+          </div>
+        </div>
       </div>
 
       <Show when={uninstallOpen()}>

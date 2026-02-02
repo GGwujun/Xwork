@@ -1,6 +1,5 @@
 
 import { createSignal, onMount, Show, createEffect } from "solid-js";
-import { useNavigate } from "@solidjs/router";
 import { generateSpec, checkForgeHealth, getSpecLifecycle, OpenSpec, LifecycleInfo } from "../lib/forge";
 import { Loader2, History, GitBranch, Download, Workflow } from "lucide-solid";
 import Button from "../components/button";
@@ -21,8 +20,10 @@ const isOpenSpec = (value: unknown): value is OpenSpec => {
   return true;
 };
 
-export default function ForgeView() {
-  const navigate = useNavigate();
+export default function ForgeView(props: {
+  setView?: (view: "dashboard" | "session" | "onboarding") => void;
+  setTab?: (tab: string) => void;
+}) {
   const [healthy, setHealthy] = createSignal(false);
   const [loading, setLoading] = createSignal(false);
   const [spec, setSpec] = createSignal<OpenSpec | null>(null);
@@ -184,14 +185,20 @@ export default function ForgeView() {
               <Show when={spec() && requirementId()}>
                 <div class="flex items-center gap-2">
                   <button
-                    onClick={() => navigate(`/spec/${requirementId()}/versions`)}
+                    onClick={() => {
+                      // TODO: 实现版本历史页面
+                      alert("版本历史功能正在开发中");
+                    }}
                     class="p-2 hover:bg-gray-3 rounded-lg transition-colors"
                     title="Version History"
                   >
                     <History class="w-4 h-4 text-gray-11" />
                   </button>
                   <button
-                    onClick={() => navigate(`/spec/${requirementId()}/lifecycle`)}
+                    onClick={() => {
+                      // TODO: 实现生命周期管理页面
+                      alert("生命周期管理功能正在开发中");
+                    }}
                     class="p-2 hover:bg-gray-3 rounded-lg transition-colors"
                     title="Lifecycle Management"
                   >

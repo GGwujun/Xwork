@@ -763,7 +763,10 @@ export default function DashboardView(props: DashboardViewProps) {
             </Match>
 
             <Match when={props.tab === "forge"}>
-              <ForgeView />
+              <ForgeView
+                setView={props.setView}
+                setTab={props.setTab}
+              />
             </Match>
 
             <Match when={props.tab === "settings"}>

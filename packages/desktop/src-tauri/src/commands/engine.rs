@@ -16,6 +16,12 @@ pub fn engine_info(manager: State<EngineManager>) -> EngineInfo {
 pub fn engine_stop(manager: State<EngineManager>) -> EngineInfo {
   let mut state = manager.inner.lock().expect("engine mutex poisoned");
   EngineManager::stop_locked(&mut state);
+
+  // 清除服务信息文件
+  if let Err(e) = crate::engine::info_file::clear_engine_info_file() {
+    eprintln!("Warning: Failed to clear engine info file: {}", e);
+  }
+
   EngineManager::snapshot_locked(&mut state)
 }
 
@@ -231,10 +237,21 @@ pub fn engine_start(
   }
 
   state.child = Some(child);
-  state.project_dir = Some(project_dir);
+  state.project_dir = Some(project_dir.clone());
   state.hostname = Some(hostname.clone());
   state.port = Some(port);
   state.base_url = Some(format!("http://{hostname}:{port}"));
+
+  // 写入服务信息到文件，供后端使用
+  let base_url_str = format!("http://{hostname}:{port}");
+  if let Err(e) = crate::engine::info_file::write_engine_info_file(
+    true,
+    Some(&base_url_str),
+    Some(port),
+    Some(&project_dir),
+  ) {
+    eprintln!("Warning: Failed to write engine info file: {}", e);
+  }
 
   Ok(EngineManager::snapshot_locked(&mut state))
 }

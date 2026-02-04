@@ -101,12 +101,6 @@ export type Template = {
   createdAt: number;
 };
 
-export type SkillCard = {
-  name: string;
-  path: string;
-  description?: string;
-};
-
 export type PluginInstallStep = {
   title: string;
   description: string;

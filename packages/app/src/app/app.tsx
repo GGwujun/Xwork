@@ -2045,6 +2045,8 @@ export default function App() {
     setView,
     mode: mode(),
     baseUrl: baseUrl(),
+    client: client(),
+    defaultModel: defaultModel(),
     clientConnected: Boolean(client()),
     busy: busy(),
     busyHint: busyHint(),

@@ -6,6 +6,7 @@ import type {
   PluginScope,
   SkillCard,
   WorkspaceTemplate,
+  Client,
 } from "../types";
 import type { McpDirectoryInfo } from "../constants";
 import type { WorkspaceInfo } from "../lib/tauri";
@@ -39,6 +40,8 @@ export type DashboardViewProps = {
   setView: (view: "dashboard" | "session" | "onboarding") => void;
   mode: "host" | "client" | null;
   baseUrl: string;
+  client: Client | null;
+  defaultModel: { providerID: string; modelID: string };
   clientConnected: boolean;
   busy: boolean;
   busyHint: string | null;
@@ -766,6 +769,10 @@ export default function DashboardView(props: DashboardViewProps) {
               <ForgeView
                 setView={props.setView}
                 setTab={props.setTab}
+                baseUrl={props.baseUrl}
+                client={props.client}
+                defaultModel={props.defaultModel}
+                workspaceRoot={props.activeWorkspaceRoot}
               />
             </Match>
 

@@ -7,6 +7,7 @@ from app.logger import setup_logging, attach_request_id
 from app.exceptions import register_exception_handlers
 from app.agent_swarm import agent_swarm
 from app.context_server import context_server
+from app.opencode_integration import get_opencode_generator, OpenCodeError
 from app.tfs_mcp import mcp_list_work_items, mcp_get_work_item, mcp_create_work_item, mcp_trigger_build
 from app.checkin_guard import validate_before_checkin
 from app.session_sync import save_current_session, get_share_link, session_sync
@@ -34,13 +35,129 @@ async def root():
 async def health():
     return {"status": "healthy", "version": "0.1.0"}
 
+@app.get("/opencode/status")
+async def opencode_status():
+    """
+    获取OpenCode服务状态
+
+    Returns:
+        OpenCode服务信息，包括URL、运行状态等
+    """
+    try:
+        from app.openwork_bridge import get_openwork_bridge
+        bridge = get_openwork_bridge()
+        service_info = bridge.get_service_info()
+
+        if service_info:
+            return {
+                "status": "connected",
+                "source": "openwork",
+                "service_info": service_info
+            }
+        else:
+            # 尝试使用环境变量或默认配置
+            import os
+            opencode_url = os.getenv('OPENCODE_URL', 'http://127.0.0.1:4096')
+            return {
+                "status": "configured",
+                "source": "environment",
+                "opencode_url": opencode_url,
+                "message": "OpenWork未运行，使用配置的URL"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 # --- Spec Generation ---
 
 @app.post("/spec/generate", response_model=OpenSpec)
-async def generate_spec(requirement: Requirement):
-    """Generate OpenSpec using Agent Swarm (PM + Architect)."""
-    spec = await agent_swarm.generate_spec(requirement)
-    return spec
+async def generate_spec(requirement: Requirement, workspace_path: Optional[str] = None):
+    """
+    Generate OpenSpec using Agent Swarm (PM + Architect).
+
+    Args:
+        requirement: 需求信息
+        workspace_path: 目标工作区路径（可选）
+    """
+    try:
+        spec = await agent_swarm.generate_spec(requirement, workspace_path)
+        return spec
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to generate spec: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate spec: {str(e)}")
+
+
+class GenerateViaOpenCodeBody(BaseModel):
+    requirement: Requirement
+    workspace_path: Optional[str] = None
+    opencode_url: Optional[str] = None
+
+
+@app.post("/spec/generate-via-opencode", response_model=OpenSpec)
+async def generate_spec_via_opencode(body: GenerateViaOpenCodeBody):
+    """
+    Generate OpenSpec using OpenCode engine directly.
+
+    This endpoint creates a temporary OpenCode session, sends a specialized prompt,
+    and parses the response into OpenSpec format.
+
+    Args:
+        body: Request body containing requirement, workspace_path, and opencode_url
+    """
+    try:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Starting OpenCode spec generation for: {body.requirement.summary}")
+
+        # 获取OpenCode生成器实例
+        # 优先级：请求参数 > OpenWork桥接 > 默认值
+        opencode_url = body.opencode_url
+        if not opencode_url:
+            try:
+                from app.openwork_bridge import get_openwork_bridge
+                bridge = get_openwork_bridge()
+                opencode_url = bridge.get_opencode_url()
+                if opencode_url:
+                    logger.info(f"从OpenWork获取到OpenCode URL: {opencode_url}")
+            except Exception as e:
+                logger.debug(f"无法从OpenWork获取URL: {str(e)}")
+
+        # 如果仍然没有URL，使用默认值
+        if not opencode_url:
+            opencode_url = "http://127.0.0.1:4096"
+            logger.warning(f"使用默认OpenCode URL: {opencode_url}")
+
+        generator = get_opencode_generator(opencode_url)
+
+        # 生成规范
+        spec = await generator.generate_spec(
+            requirement=body.requirement,
+            workspace_path=body.workspace_path
+        )
+
+        logger.info(f"Successfully generated OpenSpec via OpenCode: {spec.project_name}")
+        return spec
+
+    except OpenCodeError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"OpenCode generation failed: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"OpenCode服务错误: {str(e)}"
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Unexpected error in OpenCode generation: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"生成规范时发生未知错误: {str(e)}"
+        )
 
 # --- Skills & Context ---
 
